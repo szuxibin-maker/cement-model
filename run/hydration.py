@@ -16,23 +16,72 @@ matplotlib.rcParams['mathtext.fontset'] = 'stix'
 # 相合并规则：把 GEMS 内部多个别名统一到一个显示名
 # ============================================================
 MERGE_RULES = {
-    "SO4_CO3_AFt":    "Ettringite",
-    "CO3_SO4_AFt":    "Ettringite",
-    "ettringite":     "Ettringite",
-    "C3(AF)S0.8":     "Hydrogarnet",
-    "C3FS0.84H4.32":  "Hydrogarnet",
-    "C3(AF)S0.84H":   "Hydrogarnet",
-    "CSHQ-JenD":      "high_Ca_CSH",
-    "CSHQ-JenH":      "high_Ca_CSH",
-    "CSHQ-TobD":      "high_Ca_CSH",
-    "CSHQ-TobH":      "Decalcified_CSH",
-    "C4AsH14":        "AFm",
-    "straetlingite":  "Straetlingite",
-    "C4AsH12":        "AFm",
-    "OH_SO4_AFm":     "AFm",
-    "C4AcH11":        "Monocarboaluminate",
-    "C4Ac0.5H12":     "Hemicarbonate",
-    "OH-hydrotalcite": "OH-quintinite",
+    # ---- AFt (ettringite family) ------------------------------------------
+    "ettringite":       "AFt",
+    "C6AsH13":          "AFt",
+    "C6AsH9":           "AFt",
+    "thaumasite":       "AFt",
+    "ettringite-AlFe":  "AFt",
+    "ettringite-FeAl":  "AFt",
+    "SO4_CO3_AFt":      "AFt",
+    "CO3_SO4_AFt":      "AFt",
+    # ---- AFm (monosulphate / monocarbonate family) ------------------------
+    "C4AH19":           "AFm",
+    "C4AH13":           "AFm",
+    "C4AH11":           "AFm",
+    "CAH10":            "AFm",
+    "C4Ac0.5H12":       "AFm",
+    "C4Ac0.5H105":      "AFm",
+    "C4Ac0.5H9":        "AFm",
+    "C4AcH11":          "AFm",
+    "C4AcH9":           "AFm",
+    "C4AsH16":          "AFm",
+    "C4AsH14":          "AFm",
+    "C4AsH12":          "AFm",
+    "C4AsH105":         "AFm",
+    "C4AsH9":           "AFm",
+    "Friedels":         "AFm",
+    "C2ASH55":          "AFm",
+    "C4FH13":           "AFm",
+    "C4Fc05H10":        "AFm",
+    "C4FcH12":          "AFm",
+    "monosulph-FeAl":   "AFm",
+    "monosulph-AlFe":   "AFm",
+    "SO4_OH_AFm":       "AFm",
+    "OH_SO4_AFm":       "AFm",
+    "C2AH75":           "AFm",
+    "Kuzels":           "AFm",
+    # ---- Hydrogarnet -------------------------------------------------------
+    "C3AH6":            "Hydrogarnet",
+    "C3FH6":            "Hydrogarnet",
+    "C3FS0.84H4.32":    "Hydrogarnet",
+    "C3(AF)S0.84H":     "Hydrogarnet",
+    "C3FS1.34H3.32":    "Hydrogarnet",
+    "C3(AF)S0.8":       "Hydrogarnet",
+    # ---- Al(OH)3 -----------------------------------------------------------
+    "Al(OH)3am":        "Al(OH)3",
+    "Al(OH)3mic":       "Al(OH)3",
+    "Gibbsite":         "Al(OH)3",
+    # ---- Hydrotalcite ------------------------------------------------------
+    "hydrotalc-pyro":   "Hydrotalcite",
+    "OH-hydrotalcite":  "Hydrotalcite",
+    # ---- M-S-H -------------------------------------------------------------
+    "MSH":              "M-S-H",
+    # ---- Zeolites ----------------------------------------------------------
+    "ZeoliteP":         "Zeolites",
+    "Natrolite":        "Zeolites",
+    "Chabazite":        "Zeolites",
+    "ZeoliteX":         "Zeolites",
+    "ZeoliteY":         "Zeolites",
+    # ---- Pore water --------------------------------------------------------
+    "aq_gen":           "Pore water",
+    # ---- CSHQ solid solution -----------------------------------------------
+    "CSHQ-JenD":        "high_Ca_CSH",
+    "CSHQ-JenH":        "high_Ca_CSH",
+    "CSHQ-TobD":        "high_Ca_CSH",
+    "CSHQ-TobH":        "Decalcified_CSH",
+    # ---- Straetlingite -----------------------------------------------------
+    "straetlingite":    "Straetlingite",
 }
 
 # ============================================================
@@ -50,15 +99,18 @@ PHASE_ORDER = [
     # Portlandite
     "Portlandite",
     # AFt
-    "Ettringite",
+    "AFt",
     # AFm 系列
     "AFm",
-    "Monocarboaluminate",
-    "Hemicarbonate",
     # 其他水化产物
     "Hydrogarnet",
+    "Al(OH)3",
+    "Hydrotalcite",
+    "M-S-H",
     "Straetlingite",
-    "OH-quintinite",
+    "Zeolites",
+    # 孔隙水
+    "Pore water",
     # 碳化产物（随 CO2 增加新生，放顶部）
     "Calcite",
     "Silica-amorph",
@@ -228,7 +280,7 @@ def phase_plot(results, datatype="vfrac"):
     unique_phases = _sort_phases(raw_phases)
 
     # --- 颜色与填充图案 ---
-    custom_hatches = ['/', '\', '|', '-', '+', 'x', 'o', 'O', '.', '*',
+    custom_hatches = ['/', '\\', '|', '-', '+', 'x', 'o', 'O', '.', '*',
                       '//', '\\', '||', '--', '++']
     cmap   = plt.get_cmap('tab20')
     colors = cmap(np.linspace(0, 1, max(len(unique_phases), 1)))
@@ -364,7 +416,7 @@ def co2_phase_plot(results, datatype="masses",
     # ------------------------------------------------------------------ #
     # 3.  颜色与填充图案
     # ------------------------------------------------------------------ #
-    custom_hatches = ['/', '\', '|', '-', '+', 'x', 'o', 'O', '.', '*',
+    custom_hatches = ['/', '\\', '|', '-', '+', 'x', 'o', 'O', '.', '*',
                       '//', '\\', '||', '--', '++']
     cmap   = plt.get_cmap('tab20')
     colors = cmap(np.linspace(0, 1, max(len(unique_phases), 1)))
@@ -439,30 +491,103 @@ def co2_phase_plot(results, datatype="masses",
     return fig, ax_stack
 
 
-def run_hydration(clink_phases, wc, CSH2, T, DoH):
-   input_file = 'gems_files/CemHyds-dat.lst'
-   gemsk = GEMS(input_file)
-   all_species = clink_phases.copy()
-   all_species["H2O@"] = wc * 100
-   all_species["Gp"] = CSH2
-   for name in all_species.keys():
-       all_species[name] *= 1e-3
-   gemsk.T = T + 273.15
-   gemsk.add_multiple_species_amt(all_species, units="kg")
-   gemsk.add_species_amt("O2", 1e-6)
-   gems_vol_frac = {}
-   gems_phase_masses = {}
-   density = []
-   for i in range(len(output_times)):
-       if i > 0: gemsk.warm_start()
-       for phase in clink_phases:
-           gemsk.species_lower_bound(phase, clink_phases[phase]*(1-DoH[phase][i])*1e-3, units="kg")
-       print("Time-->", str(output_times[i]), ":", gemsk.equilibrate())
-       gems_phase_masses[output_times[i]] = gemsk.phase_masses
-       if output_times[i] == 0: init_vol = gemsk.system_volume
-       print(init_vol)
-       gems_vol_frac[output_times[i]] = gemsk.phase_volumes
-       for key, val in gems_vol_frac[output_times[i]].items():
-           gems_vol_frac[output_times[i]][key] /= init_vol
-       density.append(gemsk.system_mass / gemsk.system_volume)
-   return gems_vol_frac, gems_phase_masses, density
+def run_hydration(clink_phases, wc, CSH2, T, DoH, scm_amounts=None):
+    """Run time-series GEMS hydration for clinker + optional SCMs.
+
+    Parameters
+    ----------
+    clink_phases : dict
+        {phase_name: mass_g}  for C3S, C2S, C3A, C4AF (g per 100 g blend)
+    wc : float
+        Water-to-binder ratio (e.g. 0.5)
+    CSH2 : float
+        Gypsum amount in g per 100 g blend
+    T : float
+        Temperature in °C
+    DoH : dict
+        Degree of hydration array per clinker phase, indexed by output_times.
+        {phase_name: np.array(values_0_to_1)}
+    scm_amounts : dict, optional
+        {scm_name: mass_g}  for supplementary cementitious materials
+        (limestone, silica_fume, GGBFS, fly_ash, calcined_clay, Pozzolan, biochar).
+        SCM reaction is governed by the 5PL model (alpha function) from
+        util.final_hydration.  Leave as None for pure clinker systems.
+
+    Returns
+    -------
+    gems_vol_frac : dict  {time: {phase: vol_frac}}
+    gems_phase_masses : dict  {time: {phase: mass_kg}}
+    density : list of floats
+    """
+    # Lazy import avoids circular dependency (util.final_hydration imports
+    # parrot_killoh from this module at module level).
+    from util.final_hydration import SCM as _SCM, alpha as _alpha
+
+    input_file = 'gems_files/CemHyds-dat.lst'
+    gemsk = GEMS(input_file)
+
+    # --- Build initial species dict (clinker + water + gypsum) ---
+    all_species = clink_phases.copy()
+    all_species["H2O@"] = wc * 100   # grams of water = wc * 100g blend
+    all_species["Gp"] = CSH2
+    for name in all_species.keys():
+        all_species[name] *= 1e-3     # g → kg
+
+    gemsk.T = T + 273.15
+    gemsk.add_multiple_species_amt(all_species, units="kg")
+    gemsk.add_species_amt("O2", 1e-6)
+
+    # --- Add initial SCM contribution at t=0 (alpha at t=0) ---
+    prev_scm_alpha = {}                # track cumulative alpha per SCM
+    if scm_amounts:
+        for scm_name, scm_mass_g in scm_amounts.items():
+            if scm_name not in _SCM:
+                continue
+            a0 = _alpha(0.0, scm_name) * 1e-2   # convert % → fraction
+            prev_scm_alpha[scm_name] = a0
+            reacted_kg = scm_mass_g * 1e-3 * a0
+            if reacted_kg > 0:
+                formula, units_str = _SCM[scm_name]
+                gemsk.add_amt_from_formula(formula, reacted_kg, units=units_str)
+
+    gems_vol_frac = {}
+    gems_phase_masses = {}
+    density = []
+    init_vol = None
+
+    for i in range(len(output_times)):
+        if i > 0:
+            gemsk.warm_start()
+
+            # Add the incremental SCM contribution between t_{i-1} and t_i
+            if scm_amounts:
+                for scm_name, scm_mass_g in scm_amounts.items():
+                    if scm_name not in _SCM:
+                        continue
+                    cur_alpha = _alpha(output_times[i], scm_name) * 1e-2
+                    delta_alpha = cur_alpha - prev_scm_alpha.get(scm_name, 0.0)
+                    if delta_alpha > 0:
+                        delta_kg = scm_mass_g * 1e-3 * delta_alpha
+                        formula, units_str = _SCM[scm_name]
+                        gemsk.add_amt_from_formula(formula, delta_kg, units=units_str)
+                    prev_scm_alpha[scm_name] = cur_alpha
+
+        # Constrain unreacted clinker fraction
+        for phase in clink_phases:
+            gemsk.species_lower_bound(
+                phase,
+                clink_phases[phase] * (1 - DoH[phase][i]) * 1e-3,
+                units="kg"
+            )
+
+        print("Time-->", str(output_times[i]), ":", gemsk.equilibrate())
+        gems_phase_masses[output_times[i]] = gemsk.phase_masses
+        if output_times[i] == 0:
+            init_vol = gemsk.system_volume
+        print(init_vol)
+        gems_vol_frac[output_times[i]] = gemsk.phase_volumes
+        for key, val in gems_vol_frac[output_times[i]].items():
+            gems_vol_frac[output_times[i]][key] /= init_vol
+        density.append(gemsk.system_mass / gemsk.system_volume)
+
+    return gems_vol_frac, gems_phase_masses, density
