@@ -10,7 +10,7 @@ hydrated cement paste and generates results similar to Figure 14:
 Fixed cement recipe (CEM III/A blend)
 --------------------------------------
   Clinkers : C3S, C2S, C3A, C4AF  (from Bogue's composition)
-  SCM      : GGBFS
+  SCMs     : any combination from SCM_AMOUNTS  (added via 5PL alpha at HYDRATION_TIME)
   Gypsum   : Gp  (CaSO₄·2H₂O)
   Water    : H2O@
   Oxygen   : O2  (trace — reduces numerical stiffness)
@@ -48,7 +48,7 @@ matplotlib.rcParams['font.family'] = 'Times New Roman'
 matplotlib.rcParams['mathtext.fontset'] = 'stix'
 
 from run.GEMSCalc import GEMS
-from util.final_hydration import SCM      # elemental formulas for SCMs
+from util.final_hydration import SCM, alpha   # elemental formulas + 5PL reaction-degree
 
 # ===========================================================================
 # Configuration
@@ -61,7 +61,22 @@ CLINK_PHASES = {
     "C3A":   8.0,   # Aluminate
     "C4AF":  8.0,   # Ferrite
 }
-GGBFS_CONTENT  = 50.0   # g / 100 g blend
+
+# Supplementary cementitious materials (g / 100 g blend).
+# Set any SCM to 0 to exclude it.  Supported names: limestone, silica_fume,
+# GGBFS, fly_ash, calcined_clay, Pozzolan, biochar.
+SCM_AMOUNTS = {
+    "GGBFS":         50.0,
+    "limestone":      0.0,
+    "silica_fume":    0.0,
+    "fly_ash":        0.0,
+    "calcined_clay":  0.0,
+}
+
+# Curing age used to compute the SCM reaction degree (alpha) via the 5PL model.
+# 36500 days ≈ 100 years → approximately fully reacted for all SCMs.
+HYDRATION_TIME = 36500.0   # days
+
 GYPSUM_CONTENT =  5.0   # g / 100 g blend  (Gp = CaSO₄·2H₂O)
 WATER_CONTENT  = 50.0   # g / 100 g blend  (w/b ≈ 0.50)
 TEMPERATURE    = 25.0   # °C
@@ -212,9 +227,21 @@ def _setup_gems(co2_g):
     # Gypsum  (Gp = CaSO₄·2H₂O)
     gemsk.add_species_amt("Gp", GYPSUM_CONTENT * 1e-3, units="kg")
 
-    # GGBFS — added as elemental formula (from util/final_hydration.py SCM dict)
-    ggbfs_formula, ggbfs_units = SCM['GGBFS']
-    gemsk.add_amt_from_formula(ggbfs_formula, GGBFS_CONTENT * 1e-3, units=ggbfs_units)
+    # SCMs — each added at its 5PL reaction degree for the reference curing age.
+    # Only the *reacted* fraction contributes to the chemistry; unreacted SCM
+    # is an inert filler and is intentionally excluded from the GEMS b-vector.
+    for scm_name, scm_mass_g in SCM_AMOUNTS.items():
+        if scm_mass_g <= 0:
+            continue
+        if scm_name not in SCM:
+            print(f"  [WARNING] SCM '{scm_name}' not found in elemental formula "
+                  f"dictionary — skipping.")
+            continue
+        alpha_val = alpha(HYDRATION_TIME, scm_name) * 1e-2   # % → fraction
+        reacted_kg = scm_mass_g * 1e-3 * alpha_val
+        if reacted_kg > 0:
+            formula, units_str = SCM[scm_name]
+            gemsk.add_amt_from_formula(formula, reacted_kg, units=units_str)
 
     # Water
     gemsk.add_species_amt("H2O@", WATER_CONTENT * 1e-3, units="kg")
@@ -539,15 +566,21 @@ def main():
     print("  GEMS CO₂ Carbonation Simulation")
     print("=" * 65)
 
-    total_binder = sum(CLINK_PHASES.values()) + GGBFS_CONTENT
+    total_binder = sum(CLINK_PHASES.values()) + sum(
+        v for v in SCM_AMOUNTS.values() if v > 0
+    )
     print("\nFixed cement recipe (g / 100 g cement blend):")
     for phase, amt in CLINK_PHASES.items():
-        print(f"  {phase:<8} {amt:6.1f} g")
-    print(f"  {'GGBFS':<8} {GGBFS_CONTENT:6.1f} g")
-    print(f"  {'Gypsum':<8} {GYPSUM_CONTENT:6.1f} g  (Gp = CaSO₄·2H₂O)")
-    print(f"  {'Water':<8} {WATER_CONTENT:6.1f} g  "
+        print(f"  {phase:<16} {amt:6.1f} g")
+    for scm_name, scm_mass_g in SCM_AMOUNTS.items():
+        if scm_mass_g > 0:
+            a_val = alpha(HYDRATION_TIME, scm_name) if scm_name in SCM else 100.0
+            print(f"  {scm_name:<16} {scm_mass_g:6.1f} g  "
+                  f"(alpha @ {HYDRATION_TIME:.0f} d = {a_val:.1f} %)")
+    print(f"  {'Gypsum':<16} {GYPSUM_CONTENT:6.1f} g  (Gp = CaSO₄·2H₂O)")
+    print(f"  {'Water':<16} {WATER_CONTENT:6.1f} g  "
           f"(w/b ≈ {WATER_CONTENT / total_binder:.2f})")
-    print(f"  Temperature : {TEMPERATURE} °C\n")
+    print(f"  Temperature  : {TEMPERATURE} °C\n")
 
     co2_values, results = run_co2_scan()
 
