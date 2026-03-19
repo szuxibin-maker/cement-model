@@ -4,7 +4,7 @@
 Simulates the effect of progressively increasing CO₂ amounts on a fully
 hydrated cement paste and generates results similar to Figure 14:
 
-  (a) Stacked area plot of phase volume fractions + pH overlay curve
+  (a) Two-subplot figure: pH vs CO₂ (top) + stacked solid mass (bottom)
   (b) Semi-log plot of ionic concentrations vs CO₂ amount
 
 Fixed cement recipe (CEM III/A blend)
@@ -43,6 +43,10 @@ matplotlib.use('Agg')                     # non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
+# Global font settings (Times New Roman throughout)
+matplotlib.rcParams['font.family'] = 'Times New Roman'
+matplotlib.rcParams['mathtext.fontset'] = 'stix'
+
 from run.GEMSCalc import GEMS
 from util.final_hydration import SCM      # elemental formulas for SCMs
 
@@ -78,15 +82,40 @@ FIG_IONIC_OUT = os.path.join(_OUT_DIR, 'Figure_14b_ionic_concentration.png')
 
 # Ionic species to monitor: GEMS species name → display label
 IONIC_SPECIES = {
-    'Ca+2':    r'Ca$^{2+}$',
-    'K+':      r'K$^+$',
-    'Na+':     r'Na$^+$',
-    'Al+3':    r'Al$^{3+}$',
-    'H4SiO4@': r'Si(OH)$_4$',
-    'OH-':     r'OH$^-$',
-    'Mg+2':    r'Mg$^{2+}$',
-    'SO4-2':   r'SO$_4^{2-}$',
+    'Al+3':    'Al',
+    'CO3-2':   'C',
+    'Ca+2':    'Ca',
+    'K+':      'K',
+    'Mg+2':    'Mg',
+    'Na+':     'Na',
+    'SO4-2':   'S',
+    'H4SiO4@': 'Si',
+    'OH-':     'OH-',
 }
+
+# Phase merge rules: GEMS phase name → merged display name
+MERGE_RULES = {
+    "SO4_CO3_AFt":   "Ettringite",
+    "CO3_SO4_AFt":   "Ettringite",
+    "ettringite":    "Ettringite",
+    "C3(AF)S0.8":    "Hydrogarnet",
+    "C3FS0.84H4.32": "Hydrogarnet",
+    "C3(AF)S0.84H":  "Hydrogarnet",
+    "CSHQ-JenD":     "high_Ca_CSH",
+    "CSHQ-JenH":     "high_Ca_CSH",
+    "CSHQ-TobD":     "high_Ca_CSH",
+    "CSHQ-TobH":     "Decalcified_CSH",
+    "C4AsH14":       "AFm",
+    "straetlingite":  "Straetlingite",
+    "C4AsH12":       "AFm",
+    "OH_SO4_AFm":    "AFm",
+    "C4AcH11":       "Monocarboaluminate",
+    "C4Ac0.5H12":    "Hemicarbonate",
+    "OH-hydrotalcite": "OH-quintinite",
+}
+
+# Minimum threshold for displaying a phase (g per 100 g blend)
+PHASE_MASS_THRESHOLD_G = 1.0
 
 # ===========================================================================
 # Phase suppression  (consistent with util/final_hydration.py)
@@ -232,8 +261,13 @@ def export_csv(co2_values, results):
             'pE':             res['pE'],
             'ionic_strength': res['ionic_strength'],
         }
+        # Phase masses in grams (gemsk.phase_masses returns kg → × 1000)
+        for phase, mass_kg in res['phase_masses'].items():
+            row[f'{phase}_mass'] = mass_kg * 1000.0
+        # Phase volume fractions
         for phase, vfrac in res['phase_vfrac'].items():
             row[f'vfrac_{phase}'] = vfrac
+        # Aqueous concentrations
         for species, conc in res['aq_composition'].items():
             row[f'aq_{species}'] = conc
         rows.append(row)
@@ -249,13 +283,18 @@ def export_csv(co2_values, results):
 
 def plot_phase_evolution(co2_values, results, save_path=None):
     """
-    Figure 14(a) — stacked area of phase volume fractions with pH overlay.
+    Figure 14(a) — two-subplot figure:
+      top    : pH vs CO₂ amount
+      bottom : stacked solid mass (g / 100 g blend) vs CO₂ amount
+
+    Phases are merged via MERGE_RULES, filtered at PHASE_MASS_THRESHOLD_G,
+    and drawn with hatches + tab20 colours (Times New Roman font).
 
     Parameters
     ----------
     co2_values : array-like
     results    : list of dict (None entries are skipped)
-    save_path  : str or None  — path to save the figure
+    save_path  : str or None
     """
     valid = [(co2, r) for co2, r in zip(co2_values, results) if r is not None]
     if not valid:
@@ -265,62 +304,105 @@ def plot_phase_evolution(co2_values, results, save_path=None):
     co2_x = np.array([c for c, _ in valid])
     ph_y  = np.array([r['pH'] for _, r in valid])
 
-    # Only show phases with vfrac > 0.5 % somewhere along the CO₂ scan
-    all_phases = sorted({
-        phase
-        for _, r in valid
-        for phase, vf in r['phase_vfrac'].items()
-        if vf > 0.005
-    })
+    # ------------------------------------------------------------------
+    # Build merged phase mass matrix (grams per 100 g blend)
+    # ------------------------------------------------------------------
+    phase_series_dict = {}  # {merged_name: np.ndarray of mass values (g)}
 
-    n_phases = max(len(all_phases), 1)
-    colors   = plt.get_cmap('tab20')(np.linspace(0, 1, n_phases))
-    hatches  = ['/', '-', '|', '+', 'x', '\\', 'O', '.', '//', '--', '|-', 'XX']
+    for step_i, (_, r) in enumerate(valid):
+        for phase, mass_kg in r['phase_masses'].items():
+            if phase in ('aq_gen', 'gas_gen'):
+                continue
+            merged = MERGE_RULES.get(phase, phase)
+            if merged not in phase_series_dict:
+                phase_series_dict[merged] = np.zeros(len(valid))
+            phase_series_dict[merged][step_i] += mass_kg * 1000.0
 
-    fig, ax1 = plt.subplots(figsize=(11, 6))
+    # Filter: skip phases whose maximum mass is below threshold
+    phase_series_dict = {
+        name: arr
+        for name, arr in phase_series_dict.items()
+        if arr.max() > PHASE_MASS_THRESHOLD_G
+    }
+
+    if not phase_series_dict:
+        print("No phases above mass threshold — skipping phase-evolution plot.")
+        return None
+
+    # ------------------------------------------------------------------
+    # Phase ordering: Decalcified_CSH at index 5, high_Ca_CSH at index 6
+    # ------------------------------------------------------------------
+    unique_phases = list(phase_series_dict.keys())
+    for target in ('Decalcified_CSH', 'high_Ca_CSH'):
+        if target in unique_phases:
+            unique_phases.remove(target)
+    # Re-insert at positions 5 / 6 (clamped to list length)
+    for insert_pos, target in ((5, 'Decalcified_CSH'), (6, 'high_Ca_CSH')):
+        if target in phase_series_dict:
+            unique_phases.insert(min(insert_pos, len(unique_phases)), target)
+
+    # ------------------------------------------------------------------
+    # Colours and hatches
+    # ------------------------------------------------------------------
+    custom_hatches = ['/', '\\', '|', '-', '+', 'x', 'o', 'O', '.', '*',
+                      '//', '--', '||', '++']
+    cmap   = plt.get_cmap('tab20')
+    colors = cmap(np.linspace(0, 1, max(len(unique_phases), 1)))
+
+    phase_colors  = {p: colors[i]                              for i, p in enumerate(unique_phases)}
+    phase_hatches = {p: custom_hatches[i % len(custom_hatches)] for i, p in enumerate(unique_phases)}
+
+    # ------------------------------------------------------------------
+    # Two-subplot figure
+    # ------------------------------------------------------------------
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1,
+        gridspec_kw={'height_ratios': [0.8, 3]},
+        figsize=(9, 7),
+        sharex=True,
+    )
+
+    # ---- Subplot 1: pH vs CO₂ ----------------------------------------
+    ax1.plot(co2_x, ph_y, marker='o', linestyle='-', label='pH')
+    ax1.set_ylabel('pH', fontsize=20)
+    ax1.tick_params(axis='both', labelsize=18)
+    ax1.legend(loc='upper right', fontsize=15)
+    ax1.grid(True)
+
+    # ---- Subplot 2: stacked solid mass --------------------------------
     prev = np.zeros(len(co2_x))
-    handles = []
-
-    for i, phase in enumerate(all_phases):
-        vals = np.array([r['phase_vfrac'].get(phase, 0.0) for _, r in valid])
-        ax1.fill_between(
+    for phase in unique_phases:
+        vals = phase_series_dict[phase]
+        ax2.fill_between(
             co2_x, prev, prev + vals,
-            color=colors[i],
-            hatch=hatches[i % len(hatches)],
-            edgecolor='black', linewidth=0.5,
-            label=phase, alpha=0.85,
+            color=phase_colors[phase],
+            hatch=phase_hatches[phase],
+            edgecolor='black',
+            label=phase,
         )
         prev = prev + vals
-        handles.append(mpatches.Patch(
-            facecolor=colors[i],
-            hatch=hatches[i % len(hatches)],
-            edgecolor='black', label=phase,
-        ))
 
-    ax1.set_xlabel('Amount of CO$_2$ [g / 100 g cement blend]', fontsize=12)
-    ax1.set_ylabel('Volume fraction [m$^3$ / m$^3$ of initial volume]', fontsize=12)
-    ax1.set_xlim(CO2_MIN, CO2_MAX)
-    ax1.set_ylim(0, 1.15)
+    # Custom legend patches
+    handles = [
+        mpatches.Patch(
+            facecolor=phase_colors[p],
+            hatch=phase_hatches[p],
+            edgecolor='black',
+            label=p,
+        )
+        for p in unique_phases
+    ]
+    ax2.legend(handles=handles, ncol=1,
+               bbox_to_anchor=(1, 1), loc='upper left', fontsize=12)
 
-    # pH on secondary y-axis
-    ax2 = ax1.twinx()
-    ax2.plot(co2_x, ph_y, 'k-o', linewidth=2, markersize=5, label='pH', zorder=10)
-    ax2.set_ylabel('pH', fontsize=12)
-    ax2.set_ylim(5, 15)
+    ax2.set_xlabel('Amount of CO\u2082 (g/100 cement blend)', fontsize=18)
+    ax2.set_ylabel('Solid Mass (g)', fontsize=18)
+    ax2.tick_params(axis='both', labelsize=18)
 
-    ax1.legend(
-        handles=handles, ncol=4,
-        bbox_to_anchor=(0, 1.02), loc='lower left',
-        borderaxespad=0., fontsize='small',
-        title='Phases', handlelength=3,
-    )
-    ax2.legend(loc='upper right', fontsize=10)
-
-    fig.suptitle('Phase Evolution vs CO$_2$ Amount  (Figure 14a)', fontsize=13, y=1.01)
-    fig.tight_layout()
+    plt.tight_layout()
 
     if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+        fig.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Figure saved  →  {save_path}")
 
     plt.close(fig)
@@ -330,6 +412,9 @@ def plot_phase_evolution(co2_values, results, save_path=None):
 def plot_ionic_concentration(co2_values, results, save_path=None):
     """
     Figure 14(b) — semi-log plot of ionic concentrations vs CO₂ amount.
+
+    Plots species defined in IONIC_SPECIES with large fonts (Times New Roman)
+    and the legend placed outside the axes.
 
     Parameters
     ----------
@@ -342,25 +427,22 @@ def plot_ionic_concentration(co2_values, results, save_path=None):
         print("No valid results — skipping ionic-concentration plot.")
         return None
 
-    co2_x      = np.array([c for c, _ in valid])
-    line_styles = ['-', '--', '-.', ':', '-', '--', '-.', ':']
-    markers     = ['o', 's', '^', 'D', 'v', '<', '>', 'p']
-    colors_ion  = plt.get_cmap('tab10')(np.linspace(0, 1, len(IONIC_SPECIES)))
+    co2_x = np.array([c for c, _ in valid])
 
-    fig, ax = plt.subplots(figsize=(9, 6))
+    fig, ax = plt.subplots(figsize=(10, 7))
     plotted = False
 
-    for i, (species, label) in enumerate(IONIC_SPECIES.items()):
-        concs = np.array([r['aq_composition'].get(species, 1e-20) for _, r in valid])
-        if np.max(concs) < 1e-15:
+    for species, label in IONIC_SPECIES.items():
+        y = np.array([r['aq_composition'].get(species, 0.0) for _, r in valid])
+        mask = y > 0
+        if mask.sum() == 0:
             continue
-        ax.semilogy(
-            co2_x, concs,
-            linestyle=line_styles[i % len(line_styles)],
-            marker=markers[i % len(markers)],
-            color=colors_ion[i],
-            linewidth=1.8, markersize=5,
+        ax.plot(
+            co2_x[mask], y[mask],
+            marker='o',
+            linestyle='-',
             label=label,
+            linewidth=2,
         )
         plotted = True
 
@@ -369,17 +451,17 @@ def plot_ionic_concentration(co2_values, results, save_path=None):
         plt.close(fig)
         return None
 
-    ax.set_xlabel('Amount of CO$_2$ [g / 100 g cement blend]', fontsize=12)
-    ax.set_ylabel(r'Concentration [mol / kg$_{\mathrm{H_2O}}$]', fontsize=12)
-    ax.set_xlim(CO2_MIN, CO2_MAX)
-    ax.legend(ncol=2, fontsize=10, loc='best')
-    ax.grid(True, which='both', alpha=0.3)
-    ax.set_title('Ionic Concentrations vs CO$_2$ Amount  (Figure 14b)', fontsize=13)
+    ax.set_xlabel('Amount of CO\u2082 (g/100 cement blend)', fontsize=26)
+    ax.set_ylabel('Ions Concentration (M)', fontsize=26)
+    ax.tick_params(axis='both', labelsize=24)
+    ax.set_yscale('log')
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=20)
+    ax.grid(True, which='major', linestyle='--')
 
-    fig.tight_layout()
+    plt.tight_layout()
 
     if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches='tight')
+        fig.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f"Figure saved  →  {save_path}")
 
     plt.close(fig)
