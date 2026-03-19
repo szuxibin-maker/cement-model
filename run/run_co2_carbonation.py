@@ -227,15 +227,16 @@ def run_co2_scan():
             }
 
             results.append({
-                'co2':            co2,
-                'status':         status,
-                'pH':             gemsk.pH,
-                'pE':             gemsk.pE,
-                'ionic_strength': gemsk.ionic_strength,
-                'phase_volumes':  phase_vols,
-                'phase_masses':   gemsk.phase_masses,
-                'phase_vfrac':    phase_vfrac,
-                'aq_composition': gemsk.aq_composition,
+                'co2':               co2,
+                'status':            status,
+                'pH':                gemsk.pH,
+                'pE':                gemsk.pE,
+                'ionic_strength':    gemsk.ionic_strength,
+                'phase_volumes':     phase_vols,
+                'phase_masses':      gemsk.phase_masses,
+                'cshq_species_masses': gemsk.cshq_species_masses,
+                'phase_vfrac':       phase_vfrac,
+                'aq_composition':    gemsk.aq_composition,
             })
             print(f"OK  (pH = {results[-1]['pH']:.2f})")
 
@@ -244,6 +245,29 @@ def run_co2_scan():
             results.append(None)
 
     return co2_values, results
+
+# ===========================================================================
+# Helpers
+# ===========================================================================
+
+def _solid_masses_g(r):
+    """Return a flat dict {phase_or_species_name: mass_g} for all solid phases.
+
+    The aggregate CSHQ solid-solution entry from ``phase_masses`` is replaced
+    by the individual CSHQ species masses (``cshq_species_masses``), so that
+    ``MERGE_RULES`` can properly split them into *high_Ca_CSH* and
+    *Decalcified_CSH*.  All other phases are converted from kg to g.
+    """
+    masses = {}
+    for phase, mass_kg in r['phase_masses'].items():
+        if phase in ('aq_gen', 'gas_gen', 'CSHQ'):
+            continue
+        masses[phase] = mass_kg * 1000.0          # kg → g
+    # Expand CSHQ solid solution into individual species (already in grams)
+    for species, mass_g in r.get('cshq_species_masses', {}).items():
+        masses[species] = mass_g
+    return masses
+
 
 # ===========================================================================
 # Data export
@@ -261,9 +285,9 @@ def export_csv(co2_values, results):
             'pE':             res['pE'],
             'ionic_strength': res['ionic_strength'],
         }
-        # Phase masses in grams (gemsk.phase_masses returns kg → × 1000)
-        for phase, mass_kg in res['phase_masses'].items():
-            row[f'{phase}_mass'] = mass_kg * 1000.0
+        # Phase masses in grams — CSHQ expanded to individual species
+        for phase, mass_g in _solid_masses_g(res).items():
+            row[f'{phase}_mass'] = mass_g
         # Phase volume fractions
         for phase, vfrac in res['phase_vfrac'].items():
             row[f'vfrac_{phase}'] = vfrac
@@ -310,13 +334,11 @@ def plot_phase_evolution(co2_values, results, save_path=None):
     phase_series_dict = {}  # {merged_name: np.ndarray of mass values (g)}
 
     for step_i, (_, r) in enumerate(valid):
-        for phase, mass_kg in r['phase_masses'].items():
-            if phase in ('aq_gen', 'gas_gen'):
-                continue
+        for phase, mass_g in _solid_masses_g(r).items():
             merged = MERGE_RULES.get(phase, phase)
             if merged not in phase_series_dict:
                 phase_series_dict[merged] = np.zeros(len(valid))
-            phase_series_dict[merged][step_i] += mass_kg * 1000.0
+            phase_series_dict[merged][step_i] += mass_g
 
     # Filter: skip phases whose maximum mass is below threshold
     phase_series_dict = {
