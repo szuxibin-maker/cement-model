@@ -95,23 +95,70 @@ IONIC_SPECIES = {
 
 # Phase merge rules: GEMS phase name → merged display name
 MERGE_RULES = {
-    "SO4_CO3_AFt":   "Ettringite",
-    "CO3_SO4_AFt":   "Ettringite",
-    "ettringite":    "Ettringite",
-    "C3(AF)S0.8":    "Hydrogarnet",
-    "C3FS0.84H4.32": "Hydrogarnet",
-    "C3(AF)S0.84H":  "Hydrogarnet",
-    "CSHQ-JenD":     "high_Ca_CSH",
-    "CSHQ-JenH":     "high_Ca_CSH",
-    "CSHQ-TobD":     "high_Ca_CSH",
-    "CSHQ-TobH":     "Decalcified_CSH",
-    "C4AsH14":       "AFm",
-    "straetlingite":  "Straetlingite",
-    "C4AsH12":       "AFm",
-    "OH_SO4_AFm":    "AFm",
-    "C4AcH11":       "Monocarboaluminate",
-    "C4Ac0.5H12":    "Hemicarbonate",
-    "OH-hydrotalcite": "OH-quintinite",
+    # ---- AFt (ettringite family) ------------------------------------------
+    "ettringite":       "AFt",
+    "C6AsH13":          "AFt",
+    "C6AsH9":           "AFt",
+    "thaumasite":       "AFt",
+    "ettringite-AlFe":  "AFt",
+    "ettringite-FeAl":  "AFt",
+    "SO4_CO3_AFt":      "AFt",
+    "CO3_SO4_AFt":      "AFt",
+    # ---- AFm (monosulphate / monocarbonate family) ------------------------
+    "C4AH19":           "AFm",
+    "C4AH13":           "AFm",
+    "C4AH11":           "AFm",
+    "CAH10":            "AFm",
+    "C4Ac0.5H12":       "AFm",
+    "C4Ac0.5H105":      "AFm",
+    "C4Ac0.5H9":        "AFm",
+    "C4AcH11":          "AFm",
+    "C4AcH9":           "AFm",
+    "C4AsH16":          "AFm",
+    "C4AsH14":          "AFm",
+    "C4AsH12":          "AFm",
+    "C4AsH105":         "AFm",
+    "C4AsH9":           "AFm",
+    "Friedels":         "AFm",
+    "C2ASH55":          "AFm",
+    "C4FH13":           "AFm",
+    "C4Fc05H10":        "AFm",
+    "C4FcH12":          "AFm",
+    "monosulph-FeAl":   "AFm",
+    "monosulph-AlFe":   "AFm",
+    "SO4_OH_AFm":       "AFm",
+    "OH_SO4_AFm":       "AFm",
+    "C2AH75":           "AFm",
+    "Kuzels":           "AFm",
+    # ---- Hydrogarnet -------------------------------------------------------
+    "C3AH6":            "Hydrogarnet",
+    "C3FH6":            "Hydrogarnet",
+    "C3FS0.84H4.32":    "Hydrogarnet",
+    "C3(AF)S0.84H":     "Hydrogarnet",
+    "C3FS1.34H3.32":    "Hydrogarnet",
+    "C3(AF)S0.8":       "Hydrogarnet",
+    # ---- Al(OH)3 -----------------------------------------------------------
+    "Al(OH)3am":        "Al(OH)3",
+    "Al(OH)3mic":       "Al(OH)3",
+    "Gibbsite":         "Al(OH)3",
+    # ---- Hydrotalcite ------------------------------------------------------
+    "hydrotalc-pyro":   "Hydrotalcite",
+    "OH-hydrotalcite":  "Hydrotalcite",
+    # ---- M-S-H -------------------------------------------------------------
+    "MSH":              "M-S-H",
+    # ---- Zeolites ----------------------------------------------------------
+    "ZeoliteP":         "Zeolites",
+    "Natrolite":        "Zeolites",
+    "Chabazite":        "Zeolites",
+    "ZeoliteX":         "Zeolites",
+    "ZeoliteY":         "Zeolites",
+    # ---- CSHQ solid solution (species expanded by _solid_masses_g) --------
+    "CSHQ-JenD":        "high_Ca_CSH",
+    "CSHQ-JenH":        "high_Ca_CSH",
+    "CSHQ-TobD":        "high_Ca_CSH",
+    "CSHQ-TobH":        "Decalcified_CSH",
+    # ---- Straetlingite -----------------------------------------------------
+    "straetlingite":    "Straetlingite",
 }
 
 # Minimum threshold for displaying a phase (g per 100 g blend)
@@ -124,12 +171,6 @@ PHASE_MASS_THRESHOLD_G = 1.0
 def _suppress_phases(gemsk):
     """Suppress phases irrelevant for OPC + GGBFS carbonation."""
     _to_suppress = [
-        # Rare / high-temperature AFt variants
-        "thaumasite",
-        # Chloride-bearing phases
-        "Friedels",
-        # Zeolites (synthetic / not natural cement products)
-        "ZeoliteP", "Natrolite", "Chabazite", "ZeoliteX", "ZeoliteY",
         # High-alumina clinker phases
         "CA", "CA2", "Mayenite",
         # Free lime and alkali salts
